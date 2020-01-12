@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="cache-control" content="no-cache">
+  <meta http-equiv="pragma" content="no-cache">
+  <meta http-equiv="expires" content="0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link rel="shortcut icon" href="/img/boton-de-reproduccion-de-video.png" type="image/png">
+
+  <!-- WebJars -->
+  <link rel="stylesheet" href="/webjars/bootstrap/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="/webjars/demo-console/index.css">
+  <link rel="stylesheet" href="/webjars/ekko-lightbox/dist/ekko-lightbox.min.css">
+  <script src="/webjars/jquery/dist/jquery.min.js"></script>
+  <script src="/webjars/bootstrap/dist/js/bootstrap.min.js"></script>
+  <script src="/webjars/demo-console/index.js"></script>
+  <script src="/webjars/ekko-lightbox/dist/ekko-lightbox.min.js"></script>
+  <script src="/webjars/webrtc-adapter/release/adapter.js"></script>
+
+  <!-- Kurento -->
+  <link rel="stylesheet" href="/css/kurento.css">
+  <script src="/js/kurento-utils.min.js"></script> <!-- JAR from Maven -->
+  <script src="/js/index.js"></script>
+
+  <title>Yellow Beam</title>
+  <title>Kurento Java Tutorial - Hello World</title>
+</head>
+
+<body>
+  <header>
+  <div class="navbar navbar-inverse navbar-fixed-top">
+    <div class="">
+      <div class="navbar-header">
+        <button type="button" class="navbar-toggle" data-toggle="collapse"
+            data-target=".navbar-collapse"></button>
+        <a class="navbar-brand" href=".">Yellow Beam</a>
+      </div>
+      <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+        <ul class="nav navbar-nav navbar-left">
+          <li>
+            <a href="inicio.html">Inicio</a>
+          </li>
+          <li>
+            <a href="siguiendo.html" class="selected_nav">Siguiendo</a>
+          </li>
+          <li>
+            <a href="about.html">Sobre Nosotros</a>
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</header>
+
+  <div class="maindiv" id=div_ver>
+    <div id="div_titulo">
+      <h2>
+        Juego al lol - Alex el Capo (ft. Jaime Altozano con mando)
+      </h2>
+    </div>
+
+    <div id=div_retransmision>
+
+      <div  class="div_facecam" id="facecam1">
+        <img src="/img/alex2.gif" class="media">
+      </div>
+
+      <div class="div_facecam" id="facecam2">
+        <img src="/img/altozano.gif" class="media">
+      </div>
+
+      <div class="div_gameplay" id="maingameplay">
+        <img src="/img/lol2.gif" class="media">
+      </div>
+
+      <div class="div_gameplay" id="secondgameplay">
+        <img src="/img/lol-l.gif" class="media">
+      </div>
+    </div>
+
+    <div id="div_pie">
+      <p> Hola buenos dias</p>
+    </div>
+  </div>
+
+</body>
+
+</html>
