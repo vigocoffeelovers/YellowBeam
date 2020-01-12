@@ -50,6 +50,11 @@ public class UserSession {
   private WebRtcEndpoint webRtcEndpoint;
   private final List<IceCandidate> candidateList = new ArrayList<IceCandidate>();
 
+  /**
+   * Contruct for Beamer User
+   * @param session
+   * @param name
+   */
   public UserSession(WebSocketSession session, String name) {
     this.session = session;
     this.name = name;

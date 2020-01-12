@@ -33,6 +33,8 @@ import org.kurento.client.WebRtcEndpoint;
  */
 public class StreamPipeline {
 
+  private String stream; //only initialized when a stream is started
+
   private MediaPipeline pipeline;
   private WebRtcEndpoint callerWebRtcEp;
   private WebRtcEndpoint calleeWebRtcEp;
@@ -54,6 +56,13 @@ public class StreamPipeline {
     }
   }
 
+  public void setStreamName(String name){
+    this.stream = name;
+  }
+
+  public String getStream(){
+    return stream;
+  }
   public String generateSdpAnswerForCaller(String sdpOffer) {
     return callerWebRtcEp.processOffer(sdpOffer);
   }
@@ -76,6 +85,21 @@ public class StreamPipeline {
     return viewerWebRtcEp;
   }
 
+  /**
+   * 
+   * @param sessionId
+   * @return 0 on success
+   */
+  public int addViewerWebRtcEp(String sessionId){
+    try {
+      WebRtcEndpoint vRtcEndpoint = new WebRtcEndpoint.Builder(pipeline).build();
+      viewerWebRtcEp.put(sessionId, vRtcEndpoint);
+    } catch (Throwable t) {
+      return -1;
+    }
+    return 0;
+  }
+
   public WebRtcEndpoint getCallerWebRtcEp() {
     return callerWebRtcEp;
   }
@@ -83,5 +107,11 @@ public class StreamPipeline {
   public WebRtcEndpoint getCalleeWebRtcEp() {
     return calleeWebRtcEp;
   }
+
+  public void stopStream() {
+    stream = null;
+    viewerWebRtcEp.clear();
+  }
+
 
 }

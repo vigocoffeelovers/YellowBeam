@@ -24,6 +24,7 @@ import org.kurento.client.EventListener;
 import org.kurento.client.IceCandidate;
 import org.kurento.client.IceCandidateFoundEvent;
 import org.kurento.client.KurentoClient;
+import org.kurento.client.WebRtcEndpoint;
 import org.kurento.jsonrpc.JsonUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -49,7 +50,8 @@ public class CallHandler extends TextWebSocketHandler {
   private static final Logger log = LoggerFactory.getLogger(CallHandler.class);
   private static final Gson gson = new GsonBuilder().create();
 
-  private final ConcurrentHashMap<String, StreamPipeline> pipelines = new ConcurrentHashMap<>();
+  private final ConcurrentHashMap<String, StreamPipeline> pipelines = new ConcurrentHashMap<>();  //This one is to atach each user session with a pipeline
+  private final ConcurrentHashMap<String, StreamPipeline> streams = new ConcurrentHashMap<>();  //This one ataches eachs pipeline to a stream identifier
 
   @Autowired
   private KurentoClient kurento;
@@ -86,6 +88,20 @@ public class CallHandler extends TextWebSocketHandler {
       case "incomingCallResponse":
         incomingCallResponse(user, jsonMessage);
         break;
+      case "initStream":
+        try {
+          initStream(session, jsonMessage);
+        } catch (Throwable t) {
+          handleErrorResponse(t, session, "initStreamResponse");
+        }
+        break;
+      case "enterStream":
+        try {
+          enterStream(session, jsonMessage);
+        } catch (Throwable t) {
+          handleErrorResponse(t, session, "initStreamResponse");
+        }
+        break;
       case "onIceCandidate": {
         JsonObject candidate = jsonMessage.get("candidate").getAsJsonObject();
         if (user != null) {
@@ -98,6 +114,9 @@ public class CallHandler extends TextWebSocketHandler {
       }
       case "stop":
         stop(session);
+        break;
+      case "stopStream":
+        stopStream(session);
         break;
       default:
         break;
@@ -167,9 +186,9 @@ public class CallHandler extends TextWebSocketHandler {
     if ("accept".equals(callResponse)) {
       log.debug("Accepted call from '{}' to '{}'", from, to);
 
-      CallMediaPipeline pipeline = null;
+      StreamPipeline pipeline = null;
       try {
-        pipeline = new CallMediaPipeline(kurento);
+        pipeline = new StreamPipeline(kurento);
         pipelines.put(calleer.getSessionId(), pipeline);
         pipelines.put(callee.getSessionId(), pipeline);
 
@@ -264,11 +283,159 @@ public class CallHandler extends TextWebSocketHandler {
     }
   }
 
+  /**
+   * Stream start
+   * @param session
+   * @param jsonMessage
+   * @throws IOException
+   */
+  private void initStream(final WebSocketSession session, JsonObject jsonMessage) throws IOException {
+
+    String streamName = jsonMessage.get("stream").getAsString();  //Stream Identifier
+    StreamPipeline streamPipeline = pipelines.get(session.getId());
+
+    if(registry.getBySession(session) == null){
+      JsonObject response = new JsonObject();
+      response.addProperty("id", "initStreamResponse");
+      response.addProperty("response", "rejected: User is not registered. ");
+      session.sendMessage(new TextMessage(response.toString()));
+
+    } else if(pipelines == null) {
+      JsonObject response = new JsonObject();
+      response.addProperty("id", "initStreamResponse");
+      response.addProperty("response", "rejected: Call is not ready. ");
+      session.sendMessage(new TextMessage(response.toString()));
+
+    } else if(streams.containsKey(streamName)){
+      JsonObject response = new JsonObject();
+      response.addProperty("id", "initStreamResponse");
+      response.addProperty("response", "rejected: Stream name is already on use. ");
+      session.sendMessage(new TextMessage(response.toString()));
+    
+    } else {
+      streamPipeline.setStreamName(streamName);
+      streams.put(streamName, streamPipeline);
+      JsonObject response = new JsonObject();
+      response.addProperty("id", "initStreamResponse");
+      response.addProperty("response", "accepted");
+      session.sendMessage(new TextMessage(response.toString()));
+
+    }
+  }
+
+  /**
+   * A user enters on a stream
+   * @param session
+   * @param jsonMessage
+   * @throws IOException
+   */
+  private void enterStream(final WebSocketSession session, JsonObject jsonMessage) throws IOException {
+
+    String stream = jsonMessage.get("stream").getAsString();  //Stream Identifier
+
+    //Check if the stream exists
+    if(streams.containsKey(stream)) {
+      JsonObject response = new JsonObject();
+      response.addProperty("id", "viewerResponse");
+      response.addProperty("response", "rejected");
+      response.addProperty("message", "Unkown Stream Identifier");
+      session.sendMessage(new TextMessage(response.toString()));
+
+    } else {
+      StreamPipeline streamPipeline = streams.get(stream);
+
+      //Check if there is alredy a viewer from that session
+      if (streamPipeline.getAllViewersWebRtcEp().containsKey(session.getId())) {
+        JsonObject response = new JsonObject();
+        response.addProperty("id", "viewerResponse");
+        response.addProperty("response", "rejected");
+        response.addProperty("message", "You are already viewing this stream. "
+            + "Use a different browser to add additional viewers.");
+        session.sendMessage(new TextMessage(response.toString()));
+        return;
+      }
+
+      /*  Conect to the stream  */
+
+      String sessionId = session.getId();
+      streamPipeline.addViewerWebRtcEp(sessionId);
+
+      WebRtcEndpoint vRtcEndpoint = streamPipeline.getViewerWebRtcEp(sessionId);
+
+      vRtcEndpoint.addIceCandidateFoundListener(new EventListener<IceCandidateFoundEvent>() {
+
+        @Override
+        public void onEvent(IceCandidateFoundEvent event) {
+          JsonObject response = new JsonObject();
+          response.addProperty("id", "iceCandidate");
+          response.add("candidate", JsonUtils.toJsonObject(event.getCandidate()));
+          try {
+            synchronized (session) {
+              session.sendMessage(new TextMessage(response.toString()));
+            }
+          } catch (IOException e) {
+            log.debug(e.getMessage());
+          }
+        }
+      });
+
+      streamPipeline.getCallerWebRtcEp().connect(vRtcEndpoint);
+      String sdpOffer = jsonMessage.getAsJsonPrimitive("sdpOffer").getAsString();
+      String sdpAnswer = vRtcEndpoint.processOffer(sdpOffer);
+
+      JsonObject response = new JsonObject();
+      response.addProperty("id", "viewerResponse");
+      response.addProperty("response", "accepted");
+      response.addProperty("sdpAnswer", sdpAnswer);
+
+      synchronized (session) {
+        session.sendMessage(new TextMessage(response.toString()));
+      }
+
+      streamPipeline.getCalleeWebRtcEp().connect(vRtcEndpoint);
+      sdpOffer = jsonMessage.getAsJsonPrimitive("sdpOffer").getAsString();
+      sdpAnswer = vRtcEndpoint.processOffer(sdpOffer);
+
+      response = new JsonObject();
+      response.addProperty("id", "viewerResponse");
+      response.addProperty("response", "accepted");
+      response.addProperty("sdpAnswer", sdpAnswer);
+
+      synchronized (session) {
+        session.sendMessage(new TextMessage(response.toString()));
+      }
+      vRtcEndpoint.gatherCandidates();
+    }
+  }
+
+  public void stopStream(WebSocketSession session) throws IOException {
+    StreamPipeline pipeline = pipelines.get(session.getId());
+    String stream = pipeline.getStream();
+    if(streams.containsKey(stream)){
+      streams.remove(stream);
+
+      /* TODO: message the viewevers
+
+      for (WebRtcEndpoint viewer : pipeline.getAllViewersWebRtcEp().values()) {
+        JsonObject response = new JsonObject();
+        response.addProperty("id", "stopCommunication");
+        //viewer.sendMessage(response); Vamos a NO avisar de que se cortó la comunicacion (por que no guadamos la session de los viewers)
+      }
+      */
+      pipeline.stopStream();
+
+      //TODO: should we confirm the stop?
+    }
+  }
+
   public void stop(WebSocketSession session) throws IOException {
     String sessionId = session.getId();
+    if (pipelines.get(sessionId).getStream() != null){
+      stopStream(session);
+    } 
     if (pipelines.containsKey(sessionId)) {
       pipelines.get(sessionId).release();
-      CallMediaPipeline pipeline = pipelines.remove(sessionId);
+      StreamPipeline pipeline = pipelines.remove(sessionId);
       pipeline.release();
 
       // Both users can stop the communication. A 'stopCommunication'
