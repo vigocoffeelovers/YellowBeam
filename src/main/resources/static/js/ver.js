@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
-const ws = new WebSocket('wss://' + location.host + '/helloworld');
+const ws = new WebSocket('wss://' + location.host + '/call');
 
 let webRtcPeer;
+var mainstream;
+var stream2subscribe;
 
 /** Añadido por nosotros */
 
@@ -59,16 +61,82 @@ function dragElement(elmnt) {
   }
 }
 
-
-/** Ya creado */
-
-// UI
-let uiLocalVideo;
-let uiRemoteVideo;
-let uiState = null;
-const UI_IDLE = 0;
-const UI_STARTING = 1;
-const UI_STARTED = 2;
+function makeResizable(div) {
+  const element = document.querySelector(div);
+  const resizers = document.querySelectorAll(div + ' .resizer')
+  const minimum_size = 20;
+  let original_width = 0;
+  let original_height = 0;
+  let original_x = 0;
+  let original_y = 0;
+  let original_mouse_x = 0;
+  let original_mouse_y = 0;
+  for (let i = 0;i < resizers.length; i++) {
+    const currentResizer = resizers[i];
+    currentResizer.addEventListener('mousedown', function(e) {
+      e.preventDefault()
+      original_width = parseFloat(getComputedStyle(element, null).getPropertyValue('width').replace('px', ''));
+      original_height = parseFloat(getComputedStyle(element, null).getPropertyValue('height').replace('px', ''));
+      original_x = element.getBoundingClientRect().left;
+      original_y = element.getBoundingClientRect().top;
+      original_mouse_x = e.pageX;
+      original_mouse_y = e.pageY;
+      window.addEventListener('mousemove', resize)
+      window.addEventListener('mouseup', stopResize)
+    })
+    
+    function resize(e) {
+      if (currentResizer.classList.contains('bottom-right')) {
+        const width = original_width + (e.pageX - original_mouse_x);
+        const height = original_height + (e.pageY - original_mouse_y)
+        if (width > minimum_size) {
+          element.style.width = width + 'px'
+        }
+        if (height > minimum_size) {
+          element.style.height = height + 'px'
+        }
+      }
+      else if (currentResizer.classList.contains('bottom-left')) {
+        const height = original_height + (e.pageY - original_mouse_y)
+        const width = original_width - (e.pageX - original_mouse_x)
+        if (height > minimum_size) {
+          element.style.height = height + 'px'
+        }
+        if (width > minimum_size) {
+          element.style.width = width + 'px'
+          element.style.left = original_x + (e.pageX - original_mouse_x) + 'px'
+        }
+      }
+      else if (currentResizer.classList.contains('top-right')) {
+        const width = original_width + (e.pageX - original_mouse_x)
+        const height = original_height - (e.pageY - original_mouse_y)
+        if (width > minimum_size) {
+          element.style.width = width + 'px'
+        }
+        if (height > minimum_size) {
+          element.style.height = height + 'px'
+          element.style.top = original_y + (e.pageY - original_mouse_y) + 'px'
+        }
+      }
+      else {
+        const width = original_width - (e.pageX - original_mouse_x)
+        const height = original_height - (e.pageY - original_mouse_y)
+        if (width > minimum_size) {
+          element.style.width = width + 'px'
+          element.style.left = original_x + (e.pageX - original_mouse_x) + 'px'
+        }
+        if (height > minimum_size) {
+          element.style.height = height + 'px'
+          element.style.top = original_y + (e.pageY - original_mouse_y) + 'px'
+        }
+      }
+    }
+    
+    function stopResize() {
+      window.removeEventListener('mousemove', resize)
+    }
+  }
+}
 
 window.onload = function()
 {
@@ -76,10 +144,13 @@ window.onload = function()
   dragElement(document.getElementById("facecam2"));
   dragElement(document.getElementById("maingameplay"));
   dragElement(document.getElementById("secondgameplay"));
+  //makeResizable(document.getElementById("facecam1"));
+  //makeResizable(document.getElementById("facecam2"));
+  //makeResizable(document.getElementById("maingameplay"));
+  //makeResizable(document.getElementById("secondgameplay"));
   console = new Console();
-  uiLocalVideo = document.getElementById('uiLocalVideo');
-  uiRemoteVideo = document.getElementById('uiRemoteVideo');
-  uiSetState(UI_IDLE);
+  mainstream = document.getElementById("mainstream");
+  startStreaming();
 }
 
 window.onbeforeunload = function()
@@ -145,14 +216,14 @@ ws.onmessage = function(message)
   console.log("[onmessage] Received message: " + message.data);
 
   switch (jsonMessage.id) {
-    case 'PROCESS_SDP_ANSWER':
+    case 'viewerResponse':
       handleProcessSdpAnswer(jsonMessage);
       break;
-    case 'ADD_ICE_CANDIDATE':
-      handleAddIceCandidate(jsonMessage);
-      break;
-    case 'ERROR':
-      handleError(jsonMessage);
+    case 'iceCandidate':
+      webRtcPeer.addIceCandidate(jsonMessage.candidate, function(error) {
+        if (error)
+          return console.error('Error adding candidate: ' + error);
+      });
       break;
     default:
       // Ignore the message
@@ -180,9 +251,6 @@ function handleProcessSdpAnswer(jsonMessage)
     }
 
     console.log("[handleProcessSdpAnswer] SDP Answer ready; start remote video");
-    startVideo(uiRemoteVideo);
-
-    uiSetState(UI_STARTED);
   });
 }
 
@@ -203,14 +271,21 @@ function handleAddIceCandidate(jsonMessage)
   });
 }
 
+
+function onIceCandidate(candidate) {
+	console.log("Local candidate" + JSON.stringify(candidate));
+
+	var message = {
+		id : 'onIceCandidate',
+		candidate : candidate
+	};
+	sendMessage(message);
+}
+
 // STOP ------------------------------------------------------------------------
 
 function stop()
 {
-  if (uiState == UI_IDLE) {
-    console.log("[stop] Skip, already stopped");
-    return;
-  }
 
   console.log("[stop]");
 
@@ -219,130 +294,11 @@ function stop()
     webRtcPeer = null;
   }
 
-  uiSetState(UI_IDLE);
-  hideSpinner(uiLocalVideo, uiRemoteVideo);
+  //hideSpinner(mainstream);
 
   sendMessage({
     id: 'STOP',
   });
-}
-
-// ERROR -----------------------------------------------------------------------
-
-function handleError(jsonMessage)
-{
-  const errMessage = jsonMessage.message;
-  console.error("Kurento error: " + errMessage);
-
-  console.log("Assume that the other side stops after an error...");
-  stop();
-}
-
-
-
-/* ==================== */
-/* ==== UI actions ==== */
-/* ==================== */
-
-// Start -----------------------------------------------------------------------
-
-function uiStart()
-{
-  console.log("[start] Create WebRtcPeerSendrecv");
-  uiSetState(UI_STARTING);
-  showSpinner(uiLocalVideo, uiRemoteVideo); // Puts an loading animation on the videos
-
-  const options = {
-    localVideo: uiLocalVideo,
-    remoteVideo: uiRemoteVideo,
-    mediaConstraints: { audio: true, video: true },
-    onicecandidate: (candidate) => sendMessage({
-      id: 'ADD_ICE_CANDIDATE',
-      candidate: candidate,
-    }),
-  };
-
-  webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerSendrecv(options,
-      function(err)
-  {
-    if (err) {
-      sendError("[start/WebRtcPeerSendrecv] Error: "
-          + explainUserMediaError(err));
-      stop();
-      return;
-    }
-
-    console.log("[start/WebRtcPeerSendrecv] Created; start local video");
-    startVideo(uiLocalVideo);
-
-    console.log("[start/WebRtcPeerSendrecv] Generate SDP Offer");
-    webRtcPeer.generateOffer((err, sdpOffer) => {
-      if (err) {
-        sendError("[start/WebRtcPeerSendrecv/generateOffer] Error: " + err);
-        stop();
-        return;
-      }
-
-      sendMessage({
-        id: 'PROCESS_SDP_OFFER',
-        sdpOffer: sdpOffer,
-      });
-
-      console.log("[start/WebRtcPeerSendrecv/generateOffer] Done!");
-      uiSetState(UI_STARTED);
-    });
-  });
-}
-
-// Stop ------------------------------------------------------------------------
-
-function uiStop()
-{
-  stop();
-}
-
-// -----------------------------------------------------------------------------
-
-
-
-/* ================== */
-/* ==== UI state ==== */
-/* ================== */
-
-function uiSetState(newState)
-{
-  switch (newState) {
-    case UI_IDLE:
-      uiEnableElement('#uiStartBtn', 'uiStart()');
-      uiDisableElement('#uiStopBtn');
-      break;
-    case UI_STARTING:
-      uiDisableElement('#uiStartBtn');
-      uiDisableElement('#uiStopBtn');
-      break;
-    case UI_STARTED:
-      uiDisableElement('#uiStartBtn');
-      uiEnableElement('#uiStopBtn', 'uiStop()');
-      break;
-    default:
-      console.warn("[setState] Skip, invalid state: " + newState);
-      return;
-  }
-  uiState = newState;
-}
-
-function uiEnableElement(id, onclickHandler)
-{
-  $(id).attr('disabled', false);
-  if (onclickHandler) {
-    $(id).attr('onclick', onclickHandler);
-  }
-}
-
-function uiDisableElement(id)
-{
-  $(id).attr('disabled', true);
-  $(id).removeAttr('onclick');
 }
 
 function showSpinner()
@@ -362,22 +318,53 @@ function hideSpinner()
   }
 }
 
-function startVideo(video)
-{
-  // Manually start the <video> HTML element
-  // This is used instead of the 'autoplay' attribute, because iOS Safari
-  // requires a direct user interaction in order to play a video with audio.
-  // Ref: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/video
-  video.play().catch((err) => {
-    if (err.name === 'NotAllowedError') {
-      console.error("[start] Browser doesn't allow playing video: " + err);
-    }
-    else {
-      console.error("[start] Error in video.play(): " + err);
-    }
-  });
+// function startVideo(video)
+// {
+//   // Manually start the <video> HTML element
+//   // This is used instead of the 'autoplay' attribute, because iOS Safari
+//   // requires a direct user interaction in order to play a video with audio.
+//   // Ref: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/video
+//   video.play().catch((err) => {
+//     if (err.name === 'NotAllowedError') {
+//       console.error("[start] Browser doesn't allow playing video: " + err);
+//     }
+//     else {
+//       console.error("[start] Error in video.play(): " + err);
+//     }
+//   });
+// }
+
+function startStreaming() {
+
+  showSpinner(mainstream);
+
+  stream2subscribe = 'stream3';
+
+	var options = {
+		remoteVideo : mainstream,
+		onicecandidate : onIceCandidate,
+	}
+	webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerRecvonly(options,
+    function(error) {
+      if (error) {
+        return console.error(error);
+      }
+      webRtcPeer.generateOffer(onOfferStream);
+    });
+
 }
 
+function onOfferStream(error, offerSdp) {
+	if (error)
+		return console.error('Error generating the offer');
+	console.log('Invoking SDP offer callback function');
+	var message = {
+    id : 'enterStream',
+    stream : stream2subscribe,
+		sdpOffer : offerSdp
+	};
+	sendMessage(message);
+}
 /**
  * Lightbox utility (to display media pipeline image in a modal dialog)
  */
