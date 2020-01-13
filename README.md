@@ -18,17 +18,25 @@ You can install it following [this Kurento Media Server Instalation Guide](https
 Now folow this steps to start the Yellow Beam Server:
 
 1. Download the latest Yellow Beam version on your Machine and cd to the download directory:
-` git clone https://github.com/vigocoffeelovers/YellowBeam.git`
-` cd YellowBeam`
+```
+ git clone https://github.com/vigocoffeelovers/YellowBeam.git
+ cd YellowBeam
+```
 
 2. Ensure that the Kurento MS is currently running:
-` sudo service kurento-media-server start`
+```
+ sudo service kurento-media-server start
+```
 
 3. Launch the aplication:
-` mvn -U clean spring-boot:run -Dkms.url=ws://localhost:8888/kurento`
+```
+mvn -U clean spring-boot:run -Dkms.url=ws://localhost:8888/kurento
+```
 
 You can also use -X option to start it on debug mode:
-` mvn -X -U clean spring-boot:run -Dkms.url=ws://localhost:8888/kurento`
+```
+ mvn -X -U clean spring-boot:run -Dkms.url=ws://localhost:8888/kurento
+```
 
 Now the server is listening to requests on: https://localhost:8443
 
