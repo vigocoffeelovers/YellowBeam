@@ -336,6 +336,12 @@ function hideSpinner()
 
 function startStreaming() {
 
+  var message = {
+    id : 'enterStream',
+    stream : 'stream3'
+  };
+  sendMessage(message);
+
 	var options = {
 		remoteVideo : mainstream,
 		onicecandidate : onIceCandidate,
