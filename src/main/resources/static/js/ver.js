@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-const ws = new WebSocket('ws://' + location.host + '/call');
+const ws = new WebSocket('wss://' + location.host + '/call');
 
 let webRtcPeer;
 var mainstream;
+var stream2subscribe;
 
 /** Añadido por nosotros */
 
@@ -143,10 +144,10 @@ window.onload = function()
   dragElement(document.getElementById("facecam2"));
   dragElement(document.getElementById("maingameplay"));
   dragElement(document.getElementById("secondgameplay"));
-  makeResizable(document.getElementById("facecam1"));
-  makeResizable(document.getElementById("facecam2"));
-  makeResizable(document.getElementById("maingameplay"));
-  makeResizable(document.getElementById("secondgameplay"));
+  //makeResizable(document.getElementById("facecam1"));
+  //makeResizable(document.getElementById("facecam2"));
+  //makeResizable(document.getElementById("maingameplay"));
+  //makeResizable(document.getElementById("secondgameplay"));
   console = new Console();
   mainstream = document.getElementById("mainstream");
   startStreaming();
@@ -215,14 +216,14 @@ ws.onmessage = function(message)
   console.log("[onmessage] Received message: " + message.data);
 
   switch (jsonMessage.id) {
-    case 'PROCESS_SDP_ANSWER':
+    case 'viewerResponse':
       handleProcessSdpAnswer(jsonMessage);
       break;
-    case 'ADD_ICE_CANDIDATE':
-      handleAddIceCandidate(jsonMessage);
-      break;
-    case 'ERROR':
-      handleError(jsonMessage);
+    case 'iceCandidate':
+      webRtcPeer.addIceCandidate(jsonMessage.candidate, function(error) {
+        if (error)
+          return console.error('Error adding candidate: ' + error);
+      });
       break;
     default:
       // Ignore the message
@@ -250,7 +251,6 @@ function handleProcessSdpAnswer(jsonMessage)
     }
 
     console.log("[handleProcessSdpAnswer] SDP Answer ready; start remote video");
-    startVideo(uiRemoteVideo);
   });
 }
 
@@ -271,6 +271,17 @@ function handleAddIceCandidate(jsonMessage)
   });
 }
 
+
+function onIceCandidate(candidate) {
+	console.log("Local candidate" + JSON.stringify(candidate));
+
+	var message = {
+		id : 'onIceCandidate',
+		candidate : candidate
+	};
+	sendMessage(message);
+}
+
 // STOP ------------------------------------------------------------------------
 
 function stop()
@@ -283,22 +294,11 @@ function stop()
     webRtcPeer = null;
   }
 
-  hideSpinner(uiLocalVideo, uiRemoteVideo);
+  //hideSpinner(mainstream);
 
   sendMessage({
     id: 'STOP',
   });
-}
-
-// ERROR -----------------------------------------------------------------------
-
-function handleError(jsonMessage)
-{
-  const errMessage = jsonMessage.message;
-  console.error("Kurento error: " + errMessage);
-
-  console.log("Assume that the other side stops after an error...");
-  stop();
 }
 
 function showSpinner()
@@ -336,27 +336,35 @@ function hideSpinner()
 
 function startStreaming() {
 
-  var message = {
-    id : 'enterStream',
-    stream : 'stream3'
-  };
-  sendMessage(message);
+  showSpinner(mainstream);
+
+  stream2subscribe = 'stream3';
 
 	var options = {
 		remoteVideo : mainstream,
 		onicecandidate : onIceCandidate,
-    onerror : onError
 	}
 	webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerRecvonly(options,
     function(error) {
       if (error) {
         return console.error(error);
       }
-      webRtcPeer.generateOffer(onOfferCall);
+      webRtcPeer.generateOffer(onOfferStream);
     });
 
 }
 
+function onOfferStream(error, offerSdp) {
+	if (error)
+		return console.error('Error generating the offer');
+	console.log('Invoking SDP offer callback function');
+	var message = {
+    id : 'enterStream',
+    stream : stream2subscribe,
+		sdpOffer : offerSdp
+	};
+	sendMessage(message);
+}
 /**
  * Lightbox utility (to display media pipeline image in a modal dialog)
  */

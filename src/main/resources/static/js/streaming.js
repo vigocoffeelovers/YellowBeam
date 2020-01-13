@@ -15,7 +15,7 @@
  *
  */
 
-var ws = new WebSocket('ws://' + location.host + '/call');
+var ws = new WebSocket('wss://' + location.host + '/call');
 var videoInput;
 var videoOutput;
 var webRtcPeer;
@@ -328,9 +328,7 @@ function startStreaming() {
 function streamingResponse(message) {
 	if (message.response != 'accepted') {
 		console.info('Streaming not accepted by peer. Closing conection');
-		var errorMessage = message.rejected ? message.rejected
-				: 'Unknown reason for streaming rejection.';
-		console.log(errorMessage);
+		console.log(message.response);
 	} else {
 		setStreamingState(IN_STREAMING);
 		console.info('Live streaming has started');

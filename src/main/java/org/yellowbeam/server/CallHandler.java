@@ -338,7 +338,7 @@ public class CallHandler extends TextWebSocketHandler {
     String stream = jsonMessage.get("stream").getAsString();  //Stream Identifier
 
     //Check if the stream exists
-    if(streams.containsKey(stream)) {
+    if(!streams.containsKey(stream)) {
       JsonObject response = new JsonObject();
       response.addProperty("id", "viewerResponse");
       response.addProperty("response", "rejected");
@@ -396,6 +396,7 @@ public class CallHandler extends TextWebSocketHandler {
         session.sendMessage(new TextMessage(response.toString()));
       }
 
+      /*
       streamPipeline.getCalleeWebRtcEp().connect(vRtcEndpoint);
       sdpOffer = jsonMessage.getAsJsonPrimitive("sdpOffer").getAsString();
       sdpAnswer = vRtcEndpoint.processOffer(sdpOffer);
@@ -408,7 +409,9 @@ public class CallHandler extends TextWebSocketHandler {
       synchronized (session) {
         session.sendMessage(new TextMessage(response.toString()));
       }
+      */
       vRtcEndpoint.gatherCandidates();
+      log.debug("Viewer started viewing the stream: '{}' ", stream);
     }
   }
 
@@ -434,9 +437,12 @@ public class CallHandler extends TextWebSocketHandler {
 
   public void stop(WebSocketSession session) throws IOException {
     String sessionId = session.getId();
+    if (pipelines.get(sessionId) == null ) {
+      return;
+    }
     if (pipelines.get(sessionId).getStream() != null){
-      stopStream(session);
-    } 
+        stopStream(session);
+    }
     if (pipelines.containsKey(sessionId)) {
       pipelines.get(sessionId).release();
       StreamPipeline pipeline = pipelines.remove(sessionId);
