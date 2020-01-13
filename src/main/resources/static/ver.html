@@ -22,7 +22,7 @@
   <!-- Kurento -->
   <link rel="stylesheet" href="/css/kurento.css">
   <script src="/js/kurento-utils.min.js"></script> <!-- JAR from Maven -->
-  <script src="/js/index.js"></script>
+  <script src="/js/ver.js"></script>
 
   <title>Yellow Beam</title>
   <title>Kurento Java Tutorial - Hello World</title>
@@ -66,20 +66,44 @@
 
     <div id=div_retransmision>
 
-      <div  class="div_facecam" id="facecam1">
-        <img src="/img/alex2.gif" class="media">
+      <div  class="div_facecam" class="resizable" id="facecam1">
+        <div class='resizers'>
+          <div class='resizer top-left'></div>
+          <div class='resizer top-right'></div>
+          <div class='resizer bottom-left'></div>
+          <div class='resizer bottom-right'></div>
+          <img src="/img/alex2.gif" class="media">
+        </div>
       </div>
 
-      <div class="div_facecam" id="facecam2">
-        <img src="/img/altozano.gif" class="media">
+      <div class="div_facecam" class="resizable" id="facecam2">
+        <div class='resizers'>
+          <div class='resizer top-left'></div>
+          <div class='resizer top-right'></div>
+          <div class='resizer bottom-left'></div>
+          <div class='resizer bottom-right'></div>
+          <img src="/img/altozano.gif" class="media">
+        </div>
       </div>
 
-      <div class="div_gameplay" id="maingameplay">
-        <img src="/img/lol2.gif" class="media">
+      <div class="div_gameplay" class="resizable" id="maingameplay">
+        <div class='resizers'>
+          <div class='resizer top-left'></div>
+          <div class='resizer top-right'></div>
+          <div class='resizer bottom-left'></div>
+          <div class='resizer bottom-right'></div>
+          <video id="mainstream" autoplay controls></video>
+        </div>
       </div>
 
-      <div class="div_gameplay" id="secondgameplay">
-        <img src="/img/lol-l.gif" class="media">
+      <div class="div_gameplay" class="resizable" id="secondgameplay">
+        <div class='resizers'>
+          <div class='resizer top-left'></div>
+          <div class='resizer top-right'></div>
+          <div class='resizer bottom-left'></div>
+          <div class='resizer bottom-right'></div>
+          <img src="/img/lol-l.gif" class="media">
+        </div>
       </div>
     </div>
 
