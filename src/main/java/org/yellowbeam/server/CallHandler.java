@@ -299,18 +299,21 @@ public class CallHandler extends TextWebSocketHandler {
       response.addProperty("id", "initStreamResponse");
       response.addProperty("response", "rejected: User is not registered. ");
       session.sendMessage(new TextMessage(response.toString()));
+      log.debug("User '{}' is not registered. ", registry.getBySession(session).getName());
 
     } else if(pipelines == null) {
       JsonObject response = new JsonObject();
       response.addProperty("id", "initStreamResponse");
       response.addProperty("response", "rejected: Call is not ready. ");
       session.sendMessage(new TextMessage(response.toString()));
+      log.debug(" Call is not ready. ");
 
     } else if(streams.containsKey(streamName)){
       JsonObject response = new JsonObject();
       response.addProperty("id", "initStreamResponse");
       response.addProperty("response", "rejected: Stream name is already on use. ");
       session.sendMessage(new TextMessage(response.toString()));
+      log.debug("Stream name '{}' is already on use. ", streamName);
     
     } else {
       streamPipeline.setStreamName(streamName);
@@ -319,6 +322,7 @@ public class CallHandler extends TextWebSocketHandler {
       response.addProperty("id", "initStreamResponse");
       response.addProperty("response", "accepted");
       session.sendMessage(new TextMessage(response.toString()));
+      log.debug("Starting Stream '{}'. ", streamName);
 
     }
   }

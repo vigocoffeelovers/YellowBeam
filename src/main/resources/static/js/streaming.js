@@ -15,7 +15,7 @@
  *
  */
 
-var ws = new WebSocket('wss://' + location.host + '/call');
+var ws = new WebSocket('ws://' + location.host + '/call');
 var videoInput;
 var videoOutput;
 var webRtcPeer;
@@ -140,7 +140,7 @@ ws.onmessage = function(message) {
 		});
 		break;
 	case 'initStreamResponse':
-		streamingResponse();
+		streamingResponse(parsedMessage);
 		break;
 	default:
 		console.error('Unrecognized message', parsedMessage);
@@ -338,7 +338,7 @@ function streamingResponse(message) {
 }
 
 function stopStreaming() {
-	setCallState(NO_STREAMING);
+	setStreamingState(NO_STREAMING);
 	var initStreamMessage = {
 		id : 'stopStream'
 	};
