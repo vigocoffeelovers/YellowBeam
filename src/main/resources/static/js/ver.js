@@ -1,24 +1,236 @@
-/*
- * Copyright 2018 Kurento (https://www.kurento.org)
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 const ws = new WebSocket('wss://' + location.host + '/call');
 
 let webRtcPeer;
-var mainstream;
+
 var stream2subscribe;
+var containedVideos;
+var selectedVideo;
+
+var maingameplay;
+var secondgameplay;
+
+window.onload = function()
+{
+  stream2subscribe = new URLSearchParams(window.location.search).get('streaming');
+  maingameplay = document.getElementById("maingameplay");
+  secondgameplay = document.getElementById("secondgameplay");
+
+  dragElement(document.getElementById("facecam1"));
+  dragElement(document.getElementById("facecam2"));
+  dragElement(document.getElementById("maingameplay"));
+  dragElement(document.getElementById("secondgameplay"));
+  console = new Console();
+  this.discoverStreamsMessage();
+}
+
+window.onbeforeunload = function()
+{
+  console.log("Page unload - Close WebSocket");
+  ws.close();
+}
+
+
+
+/* ============================= */
+/* ==== WebSocket signaling ==== */
+/* ============================= */
+
+ws.onmessage = function(message)
+{
+  const jsonMessage = JSON.parse(message.data);
+  console.log("[onmessage] Received message: " + message.data);
+
+  switch (jsonMessage.id) {
+    case 'discoverStreamsResponse':
+      discoverStreamsResponse(jsonMessage);
+      break;
+    case 'streamResponse':
+      handleProcessSdpAnswer(jsonMessage);
+      break;
+    case 'iceCandidate':
+      webRtcPeer.addIceCandidate(jsonMessage.candidate, function(error) {
+        if (error)
+          return console.error('Error adding candidate: ' + error);
+        });
+      break;
+    default:
+      console.warn("[onmessage] Invalid message, id: " + jsonMessage.id);
+      break;
+  }
+}
+
+function discoverStreamsMessage() {
+  var message = {
+		id : 'discoverStreams',
+		stream : stream2subscribe
+	};
+	sendMessage(message);
+}
+
+function discoverStreamsResponse(jsonMessage) {
+  containedVideos = jsonMessage.videos;
+  selectedVideo = containedVideos[0]; //TODO for with all array and create streamingDivs dynamically
+  startStreaming(maingameplay);
+  selectedVideo = containedVideos[1];
+  startStreaming(secondgameplay);
+}
+
+function startStreaming(streamingDiv) {
+
+  showSpinner(streamingDiv);
+  var options = {
+    remoteVideo : streamingDiv,
+    onicecandidate : onIceCandidate
+  }
+  webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerRecvonly(options,
+    function(error) {
+      if (error) {
+        return console.error(error);
+      }
+      webRtcPeer.generateOffer(onOfferStream);
+    });
+
+}
+
+function onOfferStream(error, offerSdp) {
+	if (error)
+		return console.error('Error generating the offer');
+	console.log('Invoking SDP offer callback function');
+	var message = {
+    id : 'streamRequest',
+    stream : stream2subscribe,
+    video : selectedVideo,
+		sdpOffer : offerSdp
+	};
+	sendMessage(message);
+}
+
+// PROCESS_SDP_ANSWER ----------------------------------------------------------
+function handleProcessSdpAnswer(jsonMessage)
+{
+  console.log("[handleProcessSdpAnswer] SDP Answer from Kurento, process in WebRTC Peer");
+
+  if (webRtcPeer == null) {
+    console.warn("[handleProcessSdpAnswer] Skip, no WebRTC Peer");
+    return;
+  }
+
+  webRtcPeer.processAnswer(jsonMessage.sdpAnswer, (err) => {
+    if (err) {
+      sendError("[handleProcessSdpAnswer] Error: " + err);
+      stop();
+      return;
+    }
+
+    console.log("[handleProcessSdpAnswer] SDP Answer ready; start remote video");
+  });
+}
+
+// STOP ------------------------------------------------------------------------
+function stop()
+{
+
+  console.log("[stop]");
+
+  if (webRtcPeer) {
+    webRtcPeer.dispose();
+    webRtcPeer = null;
+  }
+
+  sendMessage({
+    id: 'STOP',
+  });
+}
+
+function showSpinner()
+{
+  for (let i = 0; i < arguments.length; i++) {
+    arguments[i].poster = './img/transparent-1px.png';
+    arguments[i].style.background = "center transparent url('./img/spinner.gif') no-repeat";
+  }
+}
+
+function hideSpinner()
+{
+  for (let i = 0; i < arguments.length; i++) {
+    arguments[i].src = '';
+    arguments[i].poster = './img/webrtc.png';
+    arguments[i].style.background = '';
+  }
+}
+
+// ADD_ICE_CANDIDATE -----------------------------------------------------------
+function handleAddIceCandidate(jsonMessage)
+{
+  if (webRtcPeer == null) {
+    console.warn("[handleAddIceCandidate] Skip, no WebRTC Peer");
+    return;
+  }
+
+  webRtcPeer.addIceCandidate(jsonMessage.candidate, (err) => {
+    if (err) {
+      console.error("[handleAddIceCandidate] " + err);
+      return;
+    }
+  });
+}
+
+function onIceCandidate(candidate) {
+	console.log("Local candidate" + JSON.stringify(candidate));
+
+	var message = {
+		id : 'onIceCandidate',
+		candidate : candidate
+	};
+	sendMessage(message);
+}
+
+
+function explainUserMediaError(err)
+{
+  const n = err.name;
+  if (n === 'NotFoundError' || n === 'DevicesNotFoundError') {
+    return "Missing webcam for required tracks";
+  }
+  else if (n === 'NotReadableError' || n === 'TrackStartError') {
+    return "Webcam is already in use";
+  }
+  else if (n === 'OverconstrainedError' || n === 'ConstraintNotSatisfiedError') {
+    return "Webcam doesn't provide required tracks";
+  }
+  else if (n === 'NotAllowedError' || n === 'PermissionDeniedError') {
+    return "Webcam permission has been denied by the user";
+  }
+  else if (n === 'TypeError') {
+    return "No media tracks have been requested";
+  }
+  else {
+    return "Unknown error: " + err;
+  }
+}
+
+function sendError(message)
+{
+  console.error(message);
+
+  sendMessage({
+    id: 'ERROR',
+    message: message,
+  });
+}
+
+function sendMessage(message)
+{
+  if (ws.readyState !== ws.OPEN) {
+    console.warn("[sendMessage] Skip, WebSocket session isn't open");
+    return;
+  }
+
+  const jsonMessage = JSON.stringify(message);
+  console.log("[sendMessage] message: " + jsonMessage);
+  ws.send(jsonMessage);
+}
+
 
 /** Añadido por nosotros */
 
@@ -138,233 +350,7 @@ function makeResizable(div) {
   }
 }
 
-window.onload = function()
-{
-  dragElement(document.getElementById("facecam1"));
-  dragElement(document.getElementById("facecam2"));
-  dragElement(document.getElementById("maingameplay"));
-  dragElement(document.getElementById("secondgameplay"));
-  //makeResizable(document.getElementById("facecam1"));
-  //makeResizable(document.getElementById("facecam2"));
-  //makeResizable(document.getElementById("maingameplay"));
-  //makeResizable(document.getElementById("secondgameplay"));
-  console = new Console();
-  mainstream = document.getElementById("mainstream");
-  startStreaming();
-}
 
-window.onbeforeunload = function()
-{
-  console.log("Page unload - Close WebSocket");
-  ws.close();
-}
-
-function explainUserMediaError(err)
-{
-  const n = err.name;
-  if (n === 'NotFoundError' || n === 'DevicesNotFoundError') {
-    return "Missing webcam for required tracks";
-  }
-  else if (n === 'NotReadableError' || n === 'TrackStartError') {
-    return "Webcam is already in use";
-  }
-  else if (n === 'OverconstrainedError' || n === 'ConstraintNotSatisfiedError') {
-    return "Webcam doesn't provide required tracks";
-  }
-  else if (n === 'NotAllowedError' || n === 'PermissionDeniedError') {
-    return "Webcam permission has been denied by the user";
-  }
-  else if (n === 'TypeError') {
-    return "No media tracks have been requested";
-  }
-  else {
-    return "Unknown error: " + err;
-  }
-}
-
-function sendError(message)
-{
-  console.error(message);
-
-  sendMessage({
-    id: 'ERROR',
-    message: message,
-  });
-}
-
-function sendMessage(message)
-{
-  if (ws.readyState !== ws.OPEN) {
-    console.warn("[sendMessage] Skip, WebSocket session isn't open");
-    return;
-  }
-
-  const jsonMessage = JSON.stringify(message);
-  console.log("[sendMessage] message: " + jsonMessage);
-  ws.send(jsonMessage);
-}
-
-
-
-/* ============================= */
-/* ==== WebSocket signaling ==== */
-/* ============================= */
-
-ws.onmessage = function(message)
-{
-  const jsonMessage = JSON.parse(message.data);
-  console.log("[onmessage] Received message: " + message.data);
-
-  switch (jsonMessage.id) {
-    case 'viewerResponse':
-      handleProcessSdpAnswer(jsonMessage);
-      break;
-    case 'iceCandidate':
-      webRtcPeer.addIceCandidate(jsonMessage.candidate, function(error) {
-        if (error)
-          return console.error('Error adding candidate: ' + error);
-      });
-      break;
-    default:
-      // Ignore the message
-      console.warn("[onmessage] Invalid message, id: " + jsonMessage.id);
-      break;
-  }
-}
-
-// PROCESS_SDP_ANSWER ----------------------------------------------------------
-
-function handleProcessSdpAnswer(jsonMessage)
-{
-  console.log("[handleProcessSdpAnswer] SDP Answer from Kurento, process in WebRTC Peer");
-
-  if (webRtcPeer == null) {
-    console.warn("[handleProcessSdpAnswer] Skip, no WebRTC Peer");
-    return;
-  }
-
-  webRtcPeer.processAnswer(jsonMessage.sdpAnswer, (err) => {
-    if (err) {
-      sendError("[handleProcessSdpAnswer] Error: " + err);
-      stop();
-      return;
-    }
-
-    console.log("[handleProcessSdpAnswer] SDP Answer ready; start remote video");
-  });
-}
-
-// ADD_ICE_CANDIDATE -----------------------------------------------------------
-
-function handleAddIceCandidate(jsonMessage)
-{
-  if (webRtcPeer == null) {
-    console.warn("[handleAddIceCandidate] Skip, no WebRTC Peer");
-    return;
-  }
-
-  webRtcPeer.addIceCandidate(jsonMessage.candidate, (err) => {
-    if (err) {
-      console.error("[handleAddIceCandidate] " + err);
-      return;
-    }
-  });
-}
-
-
-function onIceCandidate(candidate) {
-	console.log("Local candidate" + JSON.stringify(candidate));
-
-	var message = {
-		id : 'onIceCandidate',
-		candidate : candidate
-	};
-	sendMessage(message);
-}
-
-// STOP ------------------------------------------------------------------------
-
-function stop()
-{
-
-  console.log("[stop]");
-
-  if (webRtcPeer) {
-    webRtcPeer.dispose();
-    webRtcPeer = null;
-  }
-
-  //hideSpinner(mainstream);
-
-  sendMessage({
-    id: 'STOP',
-  });
-}
-
-function showSpinner()
-{
-  for (let i = 0; i < arguments.length; i++) {
-    arguments[i].poster = './img/transparent-1px.png';
-    arguments[i].style.background = "center transparent url('./img/spinner.gif') no-repeat";
-  }
-}
-
-function hideSpinner()
-{
-  for (let i = 0; i < arguments.length; i++) {
-    arguments[i].src = '';
-    arguments[i].poster = './img/webrtc.png';
-    arguments[i].style.background = '';
-  }
-}
-
-// function startVideo(video)
-// {
-//   // Manually start the <video> HTML element
-//   // This is used instead of the 'autoplay' attribute, because iOS Safari
-//   // requires a direct user interaction in order to play a video with audio.
-//   // Ref: https://developer.mozilla.org/en-US/docs/Web/HTML/Element/video
-//   video.play().catch((err) => {
-//     if (err.name === 'NotAllowedError') {
-//       console.error("[start] Browser doesn't allow playing video: " + err);
-//     }
-//     else {
-//       console.error("[start] Error in video.play(): " + err);
-//     }
-//   });
-// }
-
-function startStreaming() {
-
-  showSpinner(mainstream);
-
-  stream2subscribe = 'stream3';
-
-	var options = {
-		remoteVideo : mainstream,
-		onicecandidate : onIceCandidate,
-	}
-	webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerRecvonly(options,
-    function(error) {
-      if (error) {
-        return console.error(error);
-      }
-      webRtcPeer.generateOffer(onOfferStream);
-    });
-
-}
-
-function onOfferStream(error, offerSdp) {
-	if (error)
-		return console.error('Error generating the offer');
-	console.log('Invoking SDP offer callback function');
-	var message = {
-    id : 'enterStream',
-    stream : stream2subscribe,
-		sdpOffer : offerSdp
-	};
-	sendMessage(message);
-}
 /**
  * Lightbox utility (to display media pipeline image in a modal dialog)
  */

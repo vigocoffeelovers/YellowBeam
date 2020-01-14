@@ -22,11 +22,17 @@
 		<!-- <script src="webjars/draggabilly/draggabilly.pkgd.min.js"></script> -->
 		<script src="https://unpkg.com/draggabilly@2/dist/draggabilly.pkgd.min.js"></script>
 		<script src="/webjars/webrtc-adapter/release/adapter.js"></script>
-		<script src="webjars/demo-console/index.js"></script>
 		
 		<script src="js/kurento-utils.js"></script>
-		<script src="js/streaming.js"></script>
 		<title>Streaming service</title>
+
+		<script>
+			function selectStreaming() {
+			  var value = document.getElementById("streamname").value;
+			  window.location.href = "ver.html?streaming="+value;
+			}
+		</script>
+
 	</head>
 
 <body>
@@ -44,10 +50,10 @@
                 <a href="inicio.html">Inicio</a>
               </li>
               <li>
-                <a href="chooseStreaming.html">Siguiendo</a>
+                <a href="siguiendo.html">Siguiendo</a>
               </li>
               <li>
-                <a href="streaming.html" class="selected_nav">Streaming</a>
+                <a href="streaming.html">Streaming</a>
 			  </li>
 			  <li>
                 <a href="about.html">Sobre Nosotros</a>
@@ -58,73 +64,27 @@
       </div>
   </header>
 
-  <div class="container">
+  <div class='container'>
 
 	<div class="row">
 		<div class="col-md-5">
-			<label class="control-label" for="name">Name</label>
+			<label class="control-label" for="stream">Stream name:</label>
 			<div class="row">
 				<div class="col-md-6">
-					<input id="name" name="name" class="form-control" type="text"
-						onkeydown="if (event.keyCode == 13) register();" />
+					<input id="streamname" name="streamname" class="form-control" type="text"
+						onkeydown="if (event.keyCode == 13) selectStreaming();">
 				</div>
 				<div class="col-md-6 text-right">
-					<a id="register" href="#" class="btn btn-primary"><span
-						class="glyphicon glyphicon-plus"></span> Register</a>
-				</div>
-			</div>
-
-			<br /> <br /> <label class="control-label" for="peer">Peer</label>
-			<div class="row">
-				<div class="col-md-6">
-					<input id="peer" name="peer" class="form-control" type="text"
-						onkeydown="if (event.keyCode == 13) call();">
-				</div>
-				<div class="col-md-6 text-right">
-					<a id="call" 
-						href="#" class="btn btn-success"><span
-						class="glyphicon glyphicon-play"></span> Call</a>
-					<a id="terminate"
-						href="#" class="btn btn-danger"><span
-						class="glyphicon glyphicon-stop"></span> Stop</a>
-				</div>
-			</div>
-
-			<br /> <br /> <label class="control-label" for="stream">Stream</label>
-			<div class="row">
-				<div class="col-md-6">
-					<input id="stream" name="stream" class="form-control" type="text"
-						onkeydown="if (event.keyCode == 13) startStreaming();">
-				</div>
-				<div class="col-md-6 text-right">
-					<a id="startStreaming" 
-						href="#" class="btn btn-success"  onclick="startStreaming();"><span
+					<a id="chooseStreaming" 
+						href="#" class="btn btn-success"  onclick="selectStreaming();"><span
 						class="glyphicon glyphicon-play"></span> Start</a>
-					<a id="stopStreaming"
-						href="#" class="btn btn-danger"><span
-						class="glyphicon glyphicon-stop"></span> Stop</a>
 				</div>
 			</div>
 		</div>
-		<div class="col-md-7">
-			<div id="videoBig">
-				<video id="videoOutput" autoplay width="640px" height="480px"
-					poster="img/webrtc.png"></video>
-			</div>
-			<div id="videoSmall">
-				<video id="videoInput" autoplay width="240px" height="180px"
-					poster="img/webrtc.png"></video>
-			</div>
-		</div>
-	</div>
 
-	<br /> <label class="control-label" for="console">Console</label><br>
-	<br>
-	<div id="console" class="democonsole">
-		<ul></ul>
 	</div>
-
-   </div>
+	
+  </div>
   
 </body>
 
