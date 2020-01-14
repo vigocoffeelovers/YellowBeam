@@ -473,55 +473,7 @@ public class CallHandler extends TextWebSocketHandler {
       vRtcEndpoint.gatherCandidates();
       log.debug("Viewer started viewing the vid: '{}' stream: '{}' ", video, stream);
     }
-      /*
-      WebRtcEndpoint vRtcEndpoint;
-
-      //Check if user is already connected to a webRtcEndpoint
-      if (!streamPipeline.getAllViewersWebRtcEp().containsKey(session.getId())) {
-        // Add a new on if not
-        streamPipeline.addViewerWebRtcEp(sessionId);
-      } 
-      vRtcEndpoint = streamPipeline.getViewerWebRtcEp(sessionId);
-
-      vRtcEndpoint.addIceCandidateFoundListener(new EventListener<IceCandidateFoundEvent>() {
-
-        @Override
-        public void onEvent(IceCandidateFoundEvent event) {
-          JsonObject response = new JsonObject();
-          response.addProperty("id", "iceCandidate");
-          response.add("candidate", JsonUtils.toJsonObject(event.getCandidate()));
-          try {
-            synchronized (session) {
-              session.sendMessage(new TextMessage(response.toString()));
-            }
-          } catch (IOException e) {
-            log.debug(e.getMessage());
-          }
-        }
-      });
-
-      //On future the diferent videos will be maped on a HashMap<String, WebRtcEndPoint>
-      if(video.equals("callerVid")){
-        streamPipeline.getCallerWebRtcEp().connect(vRtcEndpoint);
-        System.out.println("Recieved: " + video + "Calling");
-      } else {
-        streamPipeline.getCalleeWebRtcEp().connect(vRtcEndpoint);
-      }
-      String sdpOffer = jsonMessage.getAsJsonPrimitive("sdpOffer").getAsString();
-      String sdpAnswer = vRtcEndpoint.processOffer(sdpOffer);
-
-      JsonObject response = new JsonObject();
-      response.addProperty("id", "streamResponse");
-      response.addProperty("response", "accepted");
-      response.addProperty("sdpAnswer", sdpAnswer);
-
-      synchronized (session) {
-        session.sendMessage(new TextMessage(response.toString()));
-      }
-      vRtcEndpoint.gatherCandidates();
-      log.debug("Viewer started viewing the vid: '{}' stream: '{}' ", video, stream);
-    }
-    */
+      
   }
 
   public void stopStream(WebSocketSession session) throws IOException {
@@ -530,17 +482,7 @@ public class CallHandler extends TextWebSocketHandler {
     if(streams.containsKey(stream)){
       streams.remove(stream);
 
-      /* TODO: message the viewevers
-
-      for (WebRtcEndpoint viewer : pipeline.getAllViewersWebRtcEp().values()) {
-        JsonObject response = new JsonObject();
-        response.addProperty("id", "stopCommunication");
-        //viewer.sendMessage(response); Vamos a NO avisar de que se cortó la comunicacion (por que no guadamos la session de los viewers)
-      }
-      */
       pipeline.stopStream();
-
-      //TODO: should we confirm the stop?
     }
   }
 
