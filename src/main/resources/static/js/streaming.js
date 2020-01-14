@@ -133,6 +133,9 @@ ws.onmessage = function(message) {
 		console.info('Communication ended by remote peer');
 		stop(true);
 		break;
+	case 'viewerRequest':
+		viewerRequest(parsedMessage);
+		break;
 	case 'iceCandidate':
 		webRtcPeer.addIceCandidate(parsedMessage.candidate, function(error) {
 			if (error)
@@ -225,6 +228,36 @@ function incomingCall(message) {
 		sendMessage(response);
 		stop();
 	}
+}
+
+function viewerRequest(message) {
+
+		from = message.from;
+		var options = {
+			localVideo : videoInput,
+			onicecandidate : onIceCandidate,
+			onerror : onError
+		}
+		webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerSendonly(options,
+				function(error) {
+					if (error) {
+						return console.error(error);
+					}
+					webRtcPeer.generateOffer(onOfferViewerRequest);
+				});
+}
+
+
+
+function onOfferViewerRequest(error, offerSdp) {
+	if (error)
+		return console.error("Error generating the offer");
+	var response = {
+		id : 'viewerResponse',
+		callResponse : 'accept',
+		sdpOffer : offerSdp
+	};
+	sendMessage(response);
 }
 
 function onOfferIncomingCall(error, offerSdp) {

@@ -22,16 +22,11 @@
 		<!-- <script src="webjars/draggabilly/draggabilly.pkgd.min.js"></script> -->
 		<script src="https://unpkg.com/draggabilly@2/dist/draggabilly.pkgd.min.js"></script>
 		<script src="/webjars/webrtc-adapter/release/adapter.js"></script>
+		<script src="webjars/demo-console/index.js"></script>
 		
 		<script src="js/kurento-utils.js"></script>
+		<script src="js/chooseStreaming.js"></script>
 		<title>Streaming service</title>
-
-		<script>
-			function selectStreaming() {
-			  var value = document.getElementById("streamname").value;
-			  window.location.href = "ver.html?streaming="+value;
-			}
-		</script>
 
 	</head>
 
@@ -50,7 +45,7 @@
                 <a href="inicio.html">Inicio</a>
               </li>
               <li>
-                <a href="siguiendo.html">Siguiendo</a>
+                <a href="chooseStreaming.html">Ver</a>
               </li>
               <li>
                 <a href="streaming.html">Streaming</a>
@@ -64,7 +59,7 @@
       </div>
   </header>
 
-  <div class='container'>
+  <div class='container' >
 
 	<div class="row">
 		<div class="col-md-5">
@@ -83,6 +78,14 @@
 		</div>
 
 	</div>
+
+	<br /> <label class="control-label" for="console">Console</label><br>
+	<br>
+	
+	<div id="console" class="democonsole">
+		<ul></ul>
+	</div>
+
 	
   </div>
   

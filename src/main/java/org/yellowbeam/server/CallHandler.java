@@ -100,14 +100,21 @@ public class CallHandler extends TextWebSocketHandler {
         try {
           discoverStreams(session, jsonMessage);
         } catch (Throwable t) {
-          handleErrorResponse(t, session, "initStreamResponse");
+          handleErrorResponse(t, session, "discoverStreamResponse");
         }
         break;
       case "streamRequest":
         try {
           streamRequest(session, jsonMessage);
         } catch (Throwable t) {
-          handleErrorResponse(t, session, "initStreamResponse");
+          handleErrorResponse(t, session, "streamResponse");
+        }
+        break;
+      case "viewerResponse":
+        try {
+          viewerResponse(user, jsonMessage);
+        } catch (Throwable t) {
+          handleErrorResponse(t, session, "streamResponse");
         }
         break;
       case "onIceCandidate": {
@@ -196,7 +203,7 @@ public class CallHandler extends TextWebSocketHandler {
 
       StreamPipeline pipeline = null;
       try {
-        pipeline = new StreamPipeline(kurento);
+        pipeline = new StreamPipeline(kurento, calleer, callee);
         pipelines.put(calleer.getSessionId(), pipeline);
         pipelines.put(callee.getSessionId(), pipeline);
 
@@ -291,6 +298,31 @@ public class CallHandler extends TextWebSocketHandler {
     }
   }
 
+  private void viewerResponse(final UserSession streamer, JsonObject jsonMessage)
+      throws IOException {
+    String callResponse = jsonMessage.get("callResponse").getAsString();
+    String from = jsonMessage.get("from").getAsString();
+    final UserSession calleer = registry.getByName(from);
+    String to = calleer.getCallingTo();
+
+    if ("accept".equals(callResponse)) {
+      log.debug("Accepted call from '{}' to '{}'", from, to);
+      
+      StreamPipeline pipeline = pipelines.get(streamer.getSessionId());
+
+      String calleeSdpOffer = jsonMessage.get("sdpOffer").getAsString();
+      String calleeSdpAnswer = pipeline.generateSdpAnswerForCallee(calleeSdpOffer);
+      JsonObject startCommunication = new JsonObject();
+      startCommunication.addProperty("id", "startCommunication");
+      startCommunication.addProperty("sdpAnswer", calleeSdpAnswer);
+
+      synchronized (streamer) {
+        streamer.sendMessage(startCommunication);
+      }
+
+      pipeline.getCalleeWebRtcEp().gatherCandidates();
+    }
+  }
   /**
    * Stream start
    * @param session
@@ -348,14 +380,15 @@ public class CallHandler extends TextWebSocketHandler {
     //Check if the stream exists
     if(!streams.containsKey(stream)) {
       JsonObject response = new JsonObject();
-      response.addProperty("id", "discoverStreamsResponse");
+      response.addProperty("id", "discoverStreamResponse");
       response.addProperty("response", "rejected");
       response.addProperty("message", "Unkown Stream Identifier");
       session.sendMessage(new TextMessage(response.toString()));
 
     } else {
       JsonObject response = new JsonObject();
-      response.addProperty("id", "viewerResponse");
+      response.addProperty("id", "discoverStreamResponse");
+      response.addProperty("response", "accepted");
       JsonArray vids = new JsonArray();
       vids.add("callerVid");
       vids.add("calleeVid");
@@ -382,14 +415,14 @@ public class CallHandler extends TextWebSocketHandler {
     //Check if the stream exists
     if(!streams.containsKey(stream)) {
       JsonObject response = new JsonObject();
-      response.addProperty("id", "discoverStreamsResponse");
+      response.addProperty("id", "streamResponse");
       response.addProperty("response", "rejected");
       response.addProperty("message", "Unkown Stream Identifier");
       session.sendMessage(new TextMessage(response.toString()));
 
     } else if(!video.equals("callerVid") && !video.equals("calleeVid")) {
       JsonObject response = new JsonObject();
-      response.addProperty("id", "discoverStreamsResponse");
+      response.addProperty("id", "streamResponse");
       response.addProperty("response", "rejected");
       response.addProperty("message", "Unkown Requested Video");
       session.sendMessage(new TextMessage(response.toString()));
@@ -397,38 +430,80 @@ public class CallHandler extends TextWebSocketHandler {
     } else {
       StreamPipeline streamPipeline = streams.get(stream);
       String sessionId = session.getId();
+
+      WebRtcEndpoint vRtcEndpoint = streamPipeline.addViewerWebRtcEp(sessionId);
+
+      vRtcEndpoint.addIceCandidateFoundListener(new EventListener<IceCandidateFoundEvent>() {
+
+        @Override
+        public void onEvent(IceCandidateFoundEvent event) {
+          JsonObject response = new JsonObject();
+          response.addProperty("id", "iceCandidate");
+          response.add("candidate", JsonUtils.toJsonObject(event.getCandidate()));
+          try {
+            synchronized (session) {
+              session.sendMessage(new TextMessage(response.toString()));
+            }
+          } catch (IOException e) {
+            log.debug(e.getMessage());
+          }
+        }
+      });
+
+      System.out.println("Recieved: " + video);
+      //On future the diferent videos will be maped on a HashMap<String, WebRtcEndPoint>
+      if(video.equals("callerVid")){
+        streamPipeline.getCallerWebRtcEp().connect(vRtcEndpoint);
+
+      } else {
+        streamPipeline.getCalleeWebRtcEp().connect(vRtcEndpoint);
+      }
+
+      String sdpOffer = jsonMessage.getAsJsonPrimitive("sdpOffer").getAsString();
+      String sdpAnswer = vRtcEndpoint.processOffer(sdpOffer);
+
+      JsonObject response = new JsonObject();
+      response.addProperty("id", "streamResponse");
+      response.addProperty("response", "accepted");
+      response.addProperty("sdpAnswer", sdpAnswer);
+
+      synchronized (session) {
+        session.sendMessage(new TextMessage(response.toString()));
+      }
+      vRtcEndpoint.gatherCandidates();
+      log.debug("Viewer started viewing the vid: '{}' stream: '{}' ", video, stream);
+    }
+      /*
       WebRtcEndpoint vRtcEndpoint;
 
       //Check if user is already connected to a webRtcEndpoint
       if (!streamPipeline.getAllViewersWebRtcEp().containsKey(session.getId())) {
         // Add a new on if not
         streamPipeline.addViewerWebRtcEp(sessionId);
-        vRtcEndpoint = streamPipeline.getViewerWebRtcEp(sessionId);
+      } 
+      vRtcEndpoint = streamPipeline.getViewerWebRtcEp(sessionId);
 
-        vRtcEndpoint.addIceCandidateFoundListener(new EventListener<IceCandidateFoundEvent>() {
-  
-          @Override
-          public void onEvent(IceCandidateFoundEvent event) {
-            JsonObject response = new JsonObject();
-            response.addProperty("id", "iceCandidate");
-            response.add("candidate", JsonUtils.toJsonObject(event.getCandidate()));
-            try {
-              synchronized (session) {
-                session.sendMessage(new TextMessage(response.toString()));
-              }
-            } catch (IOException e) {
-              log.debug(e.getMessage());
+      vRtcEndpoint.addIceCandidateFoundListener(new EventListener<IceCandidateFoundEvent>() {
+
+        @Override
+        public void onEvent(IceCandidateFoundEvent event) {
+          JsonObject response = new JsonObject();
+          response.addProperty("id", "iceCandidate");
+          response.add("candidate", JsonUtils.toJsonObject(event.getCandidate()));
+          try {
+            synchronized (session) {
+              session.sendMessage(new TextMessage(response.toString()));
             }
+          } catch (IOException e) {
+            log.debug(e.getMessage());
           }
-        });
-      } else {
-        //Ensure vRtcEndpoint is initialized
-        vRtcEndpoint = streamPipeline.getViewerWebRtcEp(sessionId);
-      }
+        }
+      });
 
       //On future the diferent videos will be maped on a HashMap<String, WebRtcEndPoint>
       if(video.equals("callerVid")){
         streamPipeline.getCallerWebRtcEp().connect(vRtcEndpoint);
+        System.out.println("Recieved: " + video + "Calling");
       } else {
         streamPipeline.getCalleeWebRtcEp().connect(vRtcEndpoint);
       }
@@ -446,6 +521,7 @@ public class CallHandler extends TextWebSocketHandler {
       vRtcEndpoint.gatherCandidates();
       log.debug("Viewer started viewing the vid: '{}' stream: '{}' ", video, stream);
     }
+    */
   }
 
   public void stopStream(WebSocketSession session) throws IOException {

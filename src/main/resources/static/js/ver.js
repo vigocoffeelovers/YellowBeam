@@ -9,19 +9,22 @@ var selectedVideo;
 var maingameplay;
 var secondgameplay;
 
+var currentSeekVideo = 0;
+
 window.onload = function()
 {
   stream2subscribe = new URLSearchParams(window.location.search).get('streaming');
-  maingameplay = document.getElementById("maingameplay");
-  secondgameplay = document.getElementById("secondgameplay");
+  maingameplay = document.getElementById("mainstream");
+  secondgameplay = document.getElementById("secondarystream");
 
-  dragElement(document.getElementById("facecam1"));
-  dragElement(document.getElementById("facecam2"));
+
   dragElement(document.getElementById("maingameplay"));
   dragElement(document.getElementById("secondgameplay"));
   console = new Console();
   this.discoverStreamsMessage();
 }
+
+//setTimeout(() => this.discoverStreamsMessage(), 1000)
 
 window.onbeforeunload = function()
 {
@@ -41,7 +44,7 @@ ws.onmessage = function(message)
   console.log("[onmessage] Received message: " + message.data);
 
   switch (jsonMessage.id) {
-    case 'discoverStreamsResponse':
+    case 'discoverStreamResponse':
       discoverStreamsResponse(jsonMessage);
       break;
     case 'streamResponse':
@@ -64,22 +67,34 @@ function discoverStreamsMessage() {
 		id : 'discoverStreams',
 		stream : stream2subscribe
 	};
-	sendMessage(message);
+  sendMessage(message);
 }
 
 function discoverStreamsResponse(jsonMessage) {
-  containedVideos = jsonMessage.videos;
-  selectedVideo = containedVideos[0]; //TODO for with all array and create streamingDivs dynamically
-  startStreaming(maingameplay);
-  selectedVideo = containedVideos[1];
-  startStreaming(secondgameplay);
+  if(jsonMessage.response != "accepted"){
+    console.error("Error discovering Stream: " + jsonMessage.response)
+  } else {
+    containedVideos = jsonMessage.videos;
+    seekVideo();
+  }
 }
 
-function startStreaming(streamingDiv) {
+function seekVideo() {
+  selectedVideo = containedVideos[currentSeekVideo]; //TODO for with all array and create streamingDivs dynamically
+  console.info("Seeking for video: " + selectedVideo);
+  if(currentSeekVideo == 0){
+    startStreaming(maingameplay);
+  }else{
+    startStreaming(secondgameplay);
+  }
+  currentSeekVideo++;
+}
 
-  showSpinner(streamingDiv);
+function startStreaming(streamingVid) {
+
+  showSpinner(streamingVid);
   var options = {
-    remoteVideo : streamingDiv,
+    remoteVideo : streamingVid,
     onicecandidate : onIceCandidate
   }
   webRtcPeer = new kurentoUtils.WebRtcPeer.WebRtcPeerRecvonly(options,
@@ -124,6 +139,11 @@ function handleProcessSdpAnswer(jsonMessage)
 
     console.log("[handleProcessSdpAnswer] SDP Answer ready; start remote video");
   });
+
+  if(currentSeekVideo<containedVideos.length){
+    console.info("There is at least one more stream to seek. Seeking other streams");
+    seekVideo();
+  }
 }
 
 // STOP ------------------------------------------------------------------------

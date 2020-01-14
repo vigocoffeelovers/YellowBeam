@@ -36,15 +36,20 @@ public class StreamPipeline {
   private String stream; //only initialized when a stream is started
 
   private MediaPipeline pipeline;
+  private UserSession caller;
+  private UserSession callee;
   private WebRtcEndpoint callerWebRtcEp;
   private WebRtcEndpoint calleeWebRtcEp;
   private HashMap<String,WebRtcEndpoint> viewerWebRtcEp;
 
-  public StreamPipeline(KurentoClient kurento) {
+  public StreamPipeline(KurentoClient kurento, UserSession caller, UserSession callee) {
     try {
       this.pipeline = kurento.createMediaPipeline();
       this.callerWebRtcEp = new WebRtcEndpoint.Builder(pipeline).build();
       this.calleeWebRtcEp = new WebRtcEndpoint.Builder(pipeline).build();
+
+      this.caller = caller;
+      this.callee = callee;
 
       this.callerWebRtcEp.connect(this.calleeWebRtcEp);
       this.calleeWebRtcEp.connect(this.callerWebRtcEp);
@@ -81,6 +86,14 @@ public class StreamPipeline {
     return viewerWebRtcEp.get(sessionID);
   }
 
+  public UserSession getCaller(){
+    return caller;
+  }
+
+  public UserSession getCallee(){
+    return callee;
+  }
+
   public HashMap<String, WebRtcEndpoint> getAllViewersWebRtcEp(){
     return viewerWebRtcEp;
   }
@@ -90,14 +103,9 @@ public class StreamPipeline {
    * @param sessionId
    * @return 0 on success
    */
-  public int addViewerWebRtcEp(String sessionId){
-    try {
-      WebRtcEndpoint vRtcEndpoint = new WebRtcEndpoint.Builder(pipeline).build();
-      viewerWebRtcEp.put(sessionId, vRtcEndpoint);
-    } catch (Throwable t) {
-      return -1;
-    }
-    return 0;
+  public WebRtcEndpoint addViewerWebRtcEp(String sessionId){
+    WebRtcEndpoint vRtcEndpoint = new WebRtcEndpoint.Builder(pipeline).build();
+    return vRtcEndpoint;
   }
   
   public WebRtcEndpoint getCallerWebRtcEp() {
